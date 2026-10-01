@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   ArrowDownIcon,
+  CheckIcon,
   GlobeIcon,
   HistoryIcon,
   PhoneCallIcon,
@@ -38,6 +39,13 @@ const FEATURES = [
   },
 ] as const;
 
+const RESULTS = [
+  "Validity and formatting (local and international)",
+  "Country name, ISO code and dialing prefix",
+  "Carrier and line type (mobile, landline, VoIP)",
+  "Location derived from the numbering plan",
+] as const;
+
 export default function PhoneCheckPage() {
   return (
     <>
@@ -45,12 +53,12 @@ export default function PhoneCheckPage() {
         <div className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6 sm:py-20">
           <div className="mx-auto max-w-2xl text-center">
             <p className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground">
-              <SearchIcon className="size-3.5" aria-hidden />
+              <SearchIcon className="size-3.5" aria-hidden="true" />
               Powered by the Numverify API
             </p>
 
             <h1 className="mt-6 font-heading text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-              PhoneCheck — Phone Number Validation &amp; Lookup
+              Phone Number Validation &amp; Lookup
             </h1>
 
             <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-muted-foreground text-pretty sm:text-lg">
@@ -62,7 +70,7 @@ export default function PhoneCheckPage() {
               <Button asChild size="lg" className="h-10 px-5">
                 <Link href="#analyzer">
                   Analyze a Number
-                  <ArrowDownIcon aria-hidden />
+                  <ArrowDownIcon aria-hidden="true" />
                 </Link>
               </Button>
             </div>
@@ -75,7 +83,7 @@ export default function PhoneCheckPage() {
                 className="rounded-lg border border-border bg-card p-4 text-left"
               >
                 <dt className="flex items-center gap-2 text-sm font-medium">
-                  <Icon className="size-4 text-muted-foreground" aria-hidden />
+                  <Icon className="size-4 text-muted-foreground" aria-hidden="true" />
                   {title}
                 </dt>
                 <dd className="mt-2 text-sm leading-relaxed text-muted-foreground">
@@ -102,7 +110,7 @@ export default function PhoneCheckPage() {
 
       <section aria-labelledby="how-it-works">
         <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-center">
+          <div className="grid gap-6 lg:grid-cols-2 lg:items-center">
             <div>
               <h2
                 id="how-it-works"
@@ -117,12 +125,12 @@ export default function PhoneCheckPage() {
                 VoIP line.
               </p>
               <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
-                Your lookup history never leaves this browser — it is stored locally and
-                can be cleared at any time.
+                Your lookup history never leaves this browser. It is stored locally and can
+                be cleared at any time.
               </p>
               <Button asChild variant="outline" size="sm" className="mt-5">
                 <Link href="/history">
-                  <HistoryIcon aria-hidden />
+                  <HistoryIcon aria-hidden="true" />
                   View your history
                 </Link>
               </Button>
@@ -130,26 +138,19 @@ export default function PhoneCheckPage() {
 
             <div className="rounded-lg border border-border bg-card p-5">
               <div className="flex items-center gap-2 text-sm font-medium">
-                <PhoneCallIcon className="size-4 text-muted-foreground" aria-hidden />
+                <PhoneCallIcon className="size-4 text-muted-foreground" aria-hidden="true" />
                 What you get back
               </div>
               <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-                <li className="flex gap-2">
-                  <span className="text-primary" aria-hidden">•</span>
-                  Validity and formatting (local &amp; international)
-                </li>
-                <li className="flex gap-2">
-                  <span className="text-primary" aria-hidden">•</span>
-                  Country name, ISO code and dialing prefix
-                </li>
-                <li className="flex gap-2">
-                  <span className="text-primary" aria-hidden">•</span>
-                  Carrier and line type (mobile, landline, VoIP)
-                </li>
-                <li className="flex gap-2">
-                  <span className="text-primary" aria-hidden">•</span>
-                  Location derived from the numbering plan
-                </li>
+                {RESULTS.map((result) => (
+                  <li key={result} className="flex gap-2">
+                    <CheckIcon
+                      className="mt-0.5 size-4 shrink-0 text-primary"
+                      aria-hidden="true"
+                    />
+                    {result}
+                  </li>
+                ))}
               </ul>
             </div>
           </div>

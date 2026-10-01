@@ -14,8 +14,9 @@ import { cn } from "cn";
 
 const NAV_ITEMS = [
   { href: "/admin", label: "Dashboard", Icon: LayoutDashboardIcon, exact: true },
-  { href: "/admin/visitors", label: "Visitors", Icon: UsersIcon, exact: false },
+  { href: "/admin/visitors", label: "Visitors", Icon: BarChart3Icon, exact: false },
   { href: "/admin/geography", label: "Geography", Icon: GlobeIcon, exact: false },
+  { href: "/admin/users", label: "Users", Icon: UsersIcon, exact: false },
   { href: "/admin/settings", label: "Settings", Icon: SettingsIcon, exact: false },
 ] as const;
 

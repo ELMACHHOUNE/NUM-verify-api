@@ -1,7 +1,9 @@
 import { z } from "zod";
 
 import { getCountry, getDefaultCountry, type Country } from "@/lib/countries";
+import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "@/lib/password-policy";
 import { DEVICE_TYPES, VISITOR_SORT_FIELDS } from "@/types/analytics";
+import { USER_ROLES, type AuthErrorCode } from "@/types/auth";
 
 /** Minimum/maximum plausible digit counts for a full international number. */
 const MIN_DIGITS = 4;
@@ -123,7 +125,79 @@ export const PHONE_ERROR_MESSAGES = {
 } as const satisfies Record<string, string>;
 
 /* -------------------------------------------------------------------------- */
-/* Analytics & admin                                                           */
+/* Accounts & authentication                                                    */
+/* -------------------------------------------------------------------------- */
+
+const emailSchema = z
+  .email({ error: "Enter a valid email address." })
+  .max(254, { error: "This email address is too long." });
+
+const nameSchema = z
+  .string({ error: "Enter your name." })
+  .trim()
+  .min(2, { error: "Enter your name." })
+  .max(80, { error: "Your name is too long." });
+
+/**
+ * Password strength: length is the dominant factor, so the floor is 10
+ * characters rather than a symbol-class rule that pushes people toward
+ * `Password1!`. The bounds live in `lib/password-policy.ts` so the client forms
+ * enforce exactly the same rule.
+ */
+const passwordSchema = z
+  .string({ error: "Enter a password." })
+  .min(MIN_PASSWORD_LENGTH, {
+    error: `Use at least ${MIN_PASSWORD_LENGTH} characters.`,
+  })
+  .max(MAX_PASSWORD_LENGTH, { error: "This password is too long." });
+
+export const registerSchema = z.object({
+  name: nameSchema,
+  email: emailSchema,
+  password: passwordSchema,
+});
+
+export type RegisterRequest = z.infer<typeof registerSchema>;
+
+export const loginSchema = z.object({
+  email: emailSchema,
+  // No length floor here: an existing account may predate the current policy, and
+  // rejecting the request before hashing would leak nothing but costs a lookup.
+  password: z
+    .string({ error: "Enter your password." })
+    .min(1, { error: "Enter your password." })
+    .max(MAX_PASSWORD_LENGTH, { error: "This password is too long." }),
+});
+
+export type LoginRequest = z.infer<typeof loginSchema>;
+
+/** Admin-only role/active changes. Both fields are optional for partial patches. */
+export const updateUserSchema = z
+  .object({
+    role: z.enum(USER_ROLES).optional(),
+    isActive: z.boolean().optional(),
+  })
+  .refine((value) => value.role !== undefined || value.isActive !== undefined, {
+    message: "Provide a role or an active state to change.",
+  });
+
+export type UpdateUserRequest = z.infer<typeof updateUserSchema>;
+
+export const AUTH_ERROR_MESSAGES = {
+  INVALID_REQUEST: "Check the details and try again.",
+  NOT_CONFIGURED: "Authentication is not configured.",
+  INVALID_CREDENTIALS: "Incorrect email or password.",
+  EMAIL_TAKEN: "An account with that email already exists.",
+  ACCOUNT_DISABLED: "This account has been deactivated.",
+  RATE_LIMITED: "Too many attempts. Please wait a few minutes.",
+  UNAUTHENTICATED: "Sign in to continue.",
+  FORBIDDEN: "You do not have access to this page.",
+  LAST_ADMIN: "At least one active administrator must remain.",
+  INTERNAL_ERROR: "Something went wrong. Please try again.",
+} as const satisfies Record<AuthErrorCode, string>;
+
+/* -------------------------------------------------------------------------- */
+/* Analytics                                                                    */
 /* -------------------------------------------------------------------------- */
 
 /** Body accepted by the public `/api/analytics/track` endpoint. */
@@ -154,16 +228,6 @@ export const TRACK_ERROR_MESSAGES = {
   RATE_LIMITED: "Too many tracking requests.",
   INTERNAL_ERROR: "Unable to record this visit.",
 } as const;
-
-/** Body accepted by `POST /api/admin/login`. */
-export const adminLoginSchema = z.object({
-  password: z
-    .string({ error: "Enter the admin password." })
-    .min(1, { error: "Enter the admin password." })
-    .max(256, { error: "This password is too long." }),
-});
-
-export type AdminLoginRequest = z.infer<typeof adminLoginSchema>;
 
 export const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 

@@ -1,4 +1,3 @@
-import { adminError, adminJson, rejectUnauthenticated } from "@/lib/admin-api";
 import {
   getBreakdownByField,
   getDashboardStats,
@@ -9,6 +8,9 @@ import {
   getVisitorsOverTime,
   getVisitorsByPage,
 } from "@/lib/analytics";
+import { NextResponse } from "next/server";
+
+import { authError, authJson, requireAdmin } from "@/lib/auth-guard";
 import { pickGranularity, resolveDateRange } from "@/lib/date-range";
 import { DatabaseError } from "@/lib/mongodb";
 import { getSettings } from "@/lib/settings";
@@ -21,8 +23,8 @@ import { getSettings } from "@/lib/settings";
  */
 
 export async function GET(request: Request): Promise<Response> {
-  const unauthorized = await rejectUnauthenticated();
-  if (unauthorized) return unauthorized;
+  const guard = await requireAdmin();
+  if (guard instanceof NextResponse) return guard;
 
   const { searchParams } = new URL(request.url);
   const range = resolveDateRange(
@@ -47,7 +49,7 @@ export async function GET(request: Request): Promise<Response> {
         getRecentVisitors(8),
       ]);
 
-    return adminJson({
+    return authJson({
       success: true,
       range,
       granularity: pickGranularity(range),
@@ -64,9 +66,9 @@ export async function GET(request: Request): Promise<Response> {
   } catch (error) {
     if (error instanceof DatabaseError) {
       console.error(`[admin/stats] ${error.code}: ${error.message}`);
-      return adminError("INTERNAL_ERROR");
+      return authError("INTERNAL_ERROR");
     }
     console.error("[admin/stats] Unexpected failure", error);
-    return adminError("INTERNAL_ERROR");
+    return authError("INTERNAL_ERROR");
   }
 }

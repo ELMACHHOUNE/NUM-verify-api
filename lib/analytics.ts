@@ -210,18 +210,26 @@ export async function upsertVisitor(input: TrackInput): Promise<TrackOutcome> {
     ...(input.referrer ? { referrer: input.referrer } : {}),
   };
 
-  await Visitor.updateOne(
+  // `$set` already applies to the document created by an upsert, so it must not
+  // be repeated in `$setOnInsert`: MongoDB rejects an update that writes the same
+  // path from two different operators.
+  const setFields: MatchClause = {
+    ...activityFields,
+    ...(needsGeolocation ? geoFields : {}),
+  };
+
+  const result = await Visitor.updateOne(
     { ip: input.ip },
     {
-      $set: { ...activityFields, ...(needsGeolocation ? geoFields : {}) },
-      $setOnInsert: { ip: input.ip, firstSeen: now, ...activityFields, ...geoFields },
-      // `visitCount` has no schema default, so `$inc` creates it as 1 on insert.
+      $set: setFields,
+      // `visitCount` deliberately has no schema default so `$inc` creates it as 1.
       $inc: { visitCount: 1 },
+      $setOnInsert: { ip: input.ip, firstSeen: now },
     },
     { upsert: true },
   );
 
-  return { created: existing === null, geolocated: needsGeolocation };
+  return { created: result.upsertedCount > 0, geolocated: needsGeolocation };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -523,6 +531,68 @@ export async function getBreakdownByField(
 }
 
 /**
+ * Aggregation expression that extracts the host from `$referrer`.
+ *
+ * `scheme://host[:port]/path?query#fragment` becomes `host[:port]`, lowercased.
+ * A missing referrer, or one without `://`, produces `null` so every unrecognised
+ * case collapses into a single "direct" bucket.
+ *
+ * `SENTINEL` stands in for "not found" because `$indexOfCP` returns -1, which
+ * would make `$substrCP` read from the end of the string.
+ */
+const SENTINEL = 9_999;
+
+const REFERRER_HOST_EXPR = {
+  $let: {
+    vars: {
+      // `$indexOfCP` and `$substrCP` both reject a null input, so normalise the
+      // referrer to a string first.
+      referrer: { $ifNull: ["$referrer", ""] },
+    },
+    in: {
+      $let: {
+        vars: {
+          afterScheme: {
+            $substrCP: ["$$referrer", { $add: [{ $indexOfCP: ["$$referrer", "://"] }, 3] }, 255],
+          },
+        },
+        in: {
+          $let: {
+            vars: {
+              slash: { $indexOfCP: ["$$afterScheme", "/"] },
+              question: { $indexOfCP: ["$$afterScheme", "?"] },
+              hash: { $indexOfCP: ["$$afterScheme", "#"] },
+            },
+            in: {
+              $let: {
+                vars: {
+                  host: {
+                    $substrCP: [
+                      "$$afterScheme",
+                      0,
+                      {
+                        $min: [
+                          { $cond: [{ $eq: ["$$slash", -1] }, SENTINEL, "$$slash"] },
+                          { $cond: [{ $eq: ["$$question", -1] }, SENTINEL, "$$question"] },
+                          { $cond: [{ $eq: ["$$hash", -1] }, SENTINEL, "$$hash"] },
+                        ],
+                      },
+                    ],
+                  },
+                },
+                // An empty host means "no recognisable referrer" — collapse it to
+                // null so the caller can bucket it as direct traffic.
+                in: { $cond: [{ $eq: ["$$host", ""] }, null, { $toLower: "$$host" }] },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+};
+
+/**
  * Traffic sources derived from the last recorded referrer host.
  *
  * Requests without a referrer are grouped as `Direct / Unknown`. Nothing is
@@ -538,25 +608,11 @@ export async function getTrafficSources(
   const rows = await visitors
     .aggregate<RawGroup>([
       { $match: humanInRange(range) },
-      {
-        $addFields: {
-          referrerHost: {
-            $let: {
-              vars: {
-                found: {
-                  $regexFind: {
-                    input: { $ifNull: ["$referrer", ""] },
-                    regex: "^https?://([^/?#]+)",
-                    options: "i",
-                  },
-                },
-              },
-              // `captures.0.0` is the first capture group of the first match.
-              in: { $ifNull: [{ $arrayElemAt: ["$$found.captures.0", 0] }, null] },
-            },
-          },
-        },
-      },
+      // The host is extracted with plain string operators rather than
+      // `$regexFind`: passing a regex through an aggregation as a literal is
+      // fragile, and `indexOfCP`/`substrCP` is enough for a `scheme://host/path`
+      // shape. A referrer with no scheme yields no host and falls into "direct".
+      { $addFields: { referrerHost: REFERRER_HOST_EXPR } },
       { $group: { _id: "$referrerHost", visitors: { $sum: 1 } } },
       { $sort: { visitors: -1, _id: 1 } },
       { $limit: limit },

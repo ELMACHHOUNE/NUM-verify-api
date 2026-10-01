@@ -2,6 +2,7 @@ import "server-only";
 
 import mongoose, { Schema } from "mongoose";
 
+import { getConnection } from "@/lib/mongodb";
 import { ACTIVE_WINDOW_OPTIONS, RETENTION_OPTIONS } from "@/types/analytics";
 
 /**
@@ -47,11 +48,15 @@ export const AppSetting =
 
 /** Reads the settings document, or `null` when it has never been written. */
 export async function readAppSettings(): Promise<AppSettingRecord | null> {
+  // Without this the query would sit in Mongoose's buffer and time out in a
+  // freshly started process where no earlier request has opened a connection.
+  await getConnection();
   return AppSetting.findOne({}).lean<AppSettingRecord>().exec();
 }
 
 /** Upserts the settings document. */
 export async function writeAppSettings(patch: Partial<AppSettingRecord>): Promise<void> {
+  await getConnection();
   await AppSetting.updateOne(
     {},
     { $set: { ...patch, updatedAt: new Date() } },

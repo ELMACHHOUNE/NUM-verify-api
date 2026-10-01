@@ -17,15 +17,28 @@ export class AdminApiError extends Error {
   }
 }
 
+/**
+ * Thrown when the session has expired, so callers can react (e.g. refresh) and the
+ * route that can redirect handles the navigation.
+ */
+export class AdminUnauthenticatedError extends AdminApiError {
+  constructor() {
+    super("Session expired.", 401);
+    this.name = "AdminUnauthenticatedError";
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
     headers: { "Content-Type": "application/json", ...init?.headers },
   });
 
+  // A 401 means the session is gone. `AdminUnauthenticatedError` lets the page
+  // call `router.refresh()`, which re-runs the server layout guard and lands the
+  // visitor on the sign-in page.
   if (response.status === 401) {
-    if (typeof window !== "undefined") window.location.href = "/admin/login";
-    throw new AdminApiError("Session expired.", 401);
+    throw new AdminUnauthenticatedError();
   }
 
   const data = (await response.json()) as T & { error?: string };

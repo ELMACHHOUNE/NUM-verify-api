@@ -24,11 +24,7 @@ const PRESETS = [
  * Writes `range` / `from` / `to` into the URL query string so a dashboard view
  * stays shareable and survives a refresh.
  */
-export function DateRangePicker({
-  compact = false,
-}: {
-  compact?: boolean;
-}) {
+export function DateRangePicker() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();

@@ -1,5 +1,7 @@
-import { adminError, adminJson, rejectUnauthenticated } from "@/lib/admin-api";
+import { NextResponse } from "next/server";
+
 import { getVisitorsByCity, getVisitorsByCountry } from "@/lib/analytics";
+import { authError, authJson, requireAdmin } from "@/lib/auth-guard";
 import { resolveDateRange } from "@/lib/date-range";
 import { DatabaseError } from "@/lib/mongodb";
 
@@ -9,8 +11,8 @@ const COUNTRY_LIMIT = 40;
 const CITY_LIMIT = 60;
 
 export async function GET(request: Request): Promise<Response> {
-  const unauthorized = await rejectUnauthenticated();
-  if (unauthorized) return unauthorized;
+  const guard = await requireAdmin();
+  if (guard instanceof NextResponse) return guard;
 
   const { searchParams } = new URL(request.url);
   const range = resolveDateRange(
@@ -25,13 +27,13 @@ export async function GET(request: Request): Promise<Response> {
       getVisitorsByCity(range, CITY_LIMIT),
     ]);
 
-    return adminJson({ success: true, range, countries, cities });
+    return authJson({ success: true, range, countries, cities });
   } catch (error) {
     if (error instanceof DatabaseError) {
       console.error(`[admin/geography] ${error.code}: ${error.message}`);
-      return adminError("INTERNAL_ERROR");
+      return authError("INTERNAL_ERROR");
     }
     console.error("[admin/geography] Unexpected failure", error);
-    return adminError("INTERNAL_ERROR");
+    return authError("INTERNAL_ERROR");
   }
 }

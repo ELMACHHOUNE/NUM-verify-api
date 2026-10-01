@@ -21,6 +21,12 @@ export const TRACK_LIMIT = { windowMs: 60_000, max: 60 } as const;
 /** Sign-in endpoint: strict, and on a long window, to slow credential stuffing. */
 export const LOGIN_LIMIT = { windowMs: 15 * 60_000, max: 10 } as const;
 
+/**
+ * Sign-ups are cheaper to abuse than sign-ins and each one writes a document,
+ * so the window is tighter: 5 accounts per hour per IP.
+ */
+export const REGISTER_LIMIT = { windowMs: 60 * 60_000, max: 5 } as const;
+
 export interface RateLimitRule {
   windowMs: number;
   max: number;
